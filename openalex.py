@@ -1,8 +1,7 @@
-#if output directories don't exist, create them. For "clean", create a DSPace ingest directory system; for "flagged" just create a CSV for John.
-
 import requests
 import json
 import os
+import xml.etree.cElementTree as ET
 
 BASE_URL = "https://api.openalex.org/works?filter=authorships.institutions.lineage%3Ai"
 UWINNIPEG_ID = "872945872"
@@ -26,35 +25,58 @@ def query(url, id, page):
     else:
         response.raise_for_status
 
+def check_pdf(pdf_url):
+    response = requests.get(pdf_url)
+    return response.ok
+
 def total_results(results):
     return results['meta']['count']
 
+def fetch_authors(item):
+    authors = []
+    for author in item['authorships']:
+        authors.append(author['author']['display_name'])
+    return authors
+
+def fetch_keywords(item):
+    keywords = []
+    for word in item['keywords']:
+        keywords.append(word['display_name'].lower())
+    for word in item['concepts']:
+        keywords.append(word['display_name'].lower())
+    return set(keywords)
+
 def build_record(item):
-        status = "clean" # or flagged
+        status = "clean" # or flagged; if # clean output DSpace item directory; if flagged out put to CSV
         record = dict()
         title = item['title']
         pubdate = item['publication_date']
         doi = item['doi']
-        authors = []
         location = item['best_oa_location']
+        authors = fetch_authors(item)
+        keywords = fetch_keywords(item)
+        type = item['type']
+        
         if item['best_oa_location'] is None:
             location = item['primary_location']
         else:
             location = item['best_oa_location']
         pdf_url = location['pdf_url']
-        for author in item['authorships']:
-            authors.append(author['author']['display_name'])
+        
+        if pdf_url is None:
+            is_oa = "False"
+        else:
+            is_oa = check_pdf(pdf_url)
+        
+        if is_oa == "False":
+            status = "flagged"
+        
         if 'license' in item:
             license = item['license']
         else:
             license = "no license"
-        type = item['type']
-        keywords = []
-        for word in item['keywords']:
-            keywords.append(word['display_name'].lower())
-        for word in item['concepts']:
-            keywords.append(word['display_name'].lower())
-        record = {"title": title, "pubdate": pubdate, "doi": doi, "authors": authors, "type": type, "keywords": set(keywords), "license": license, "pdf_url": pdf_url}
+        
+        record = {"title": title, "pubdate": pubdate, "doi": doi, "authors": authors, "type": type, "keywords": keywords, "license": license, "pdf_url": pdf_url, "is_oa": is_oa, "status": status}
         return record
 
 def parse_results(data):
@@ -63,10 +85,31 @@ def parse_results(data):
         items.append(build_record(item))
     return items
 
+def write_dspace_data(data):
+    shutil.rmtree("import_package") # start clean
+    create_base_dirs()
+    os.chdir("import_package")
+
+    for index, record in enumerate(data):
+        path = f'item_{str(index).zfill(3)}'
+        print(path)
+        os.makedirs(path)
+        os.chdir(path)
+        root = ET.Element("root")
+        doc = ET.SubElement(root, "doc")
+        ET.SubElement(doc, "field1", name="blah").text = "some value1"
+        ET.SubElement(doc, "field2", name="spqr").text = "some value2"
+        tree = ET.ElementTree(root)
+        tree.write("dublin_core.xml")
+        os.chdir("..")
+
+    return None
+
+
 
 
 
 #print(query(BASE_URL, UWINNIPEG_ID, 1))
 #create_base_dirs()
 #print(total_results(query(BASE_URL, UWINNIPEG_ID, 1)))
-print(parse_results(query(BASE_URL, UWINNIPEG_ID, 1)))
+write_dspace_data(parse_results(query(BASE_URL, UWINNIPEG_ID, 1)))
