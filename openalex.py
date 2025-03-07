@@ -1,7 +1,8 @@
 import requests
 import json
 import os
-import xml.etree.cElementTree as ET
+import shutil
+
 
 BASE_URL = "https://api.openalex.org/works?filter=authorships.institutions.lineage%3Ai"
 UWINNIPEG_ID = "872945872"
@@ -85,8 +86,18 @@ def parse_results(data):
         items.append(build_record(item))
     return items
 
+def write_dublin_core_file(record):
+    with open("dublin_core.xml", "w") as outfile:
+        doc = "<dublin_core>"
+        doc += "<dcvalue element=\"title\" qualifier=\"none\">" + record["title"]+"</dcvalue>"
+        doc += "<dcvalue element=\"date\" qualifier=\"none\">" + record["pubdate"]+"</dcvalue>"
+        if record['doi'] is not None:
+            doc += "<dcvalue element=\"identifier\" qualifier=\"none\">" + record["doi"]+"</dcvalue>"
+        doc += "</dublin_core>"
+        outfile.write(doc)
+
 def write_dspace_data(data):
-    shutil.rmtree("import_package") # start clean
+    #shutil.rmtree("import_package") # start clean
     create_base_dirs()
     os.chdir("import_package")
 
@@ -95,12 +106,7 @@ def write_dspace_data(data):
         print(path)
         os.makedirs(path)
         os.chdir(path)
-        root = ET.Element("root")
-        doc = ET.SubElement(root, "doc")
-        ET.SubElement(doc, "field1", name="blah").text = "some value1"
-        ET.SubElement(doc, "field2", name="spqr").text = "some value2"
-        tree = ET.ElementTree(root)
-        tree.write("dublin_core.xml")
+        write_dublin_core_file(record)
         os.chdir("..")
 
     return None
@@ -111,5 +117,6 @@ def write_dspace_data(data):
 
 #print(query(BASE_URL, UWINNIPEG_ID, 1))
 #create_base_dirs()
-#print(total_results(query(BASE_URL, UWINNIPEG_ID, 1)))
+#print(total_results(query(BASE_URL, UWINNIPEG_ID, 1)))a
+#print(parse_results(query(BASE_URL, UWINNIPEG_ID, 1)))
 write_dspace_data(parse_results(query(BASE_URL, UWINNIPEG_ID, 1)))
