@@ -67,7 +67,7 @@ def build_record(item):
         if pdf_url is None:
             is_oa = "False"
         else:
-            is_oa = check_pdf(pdf_url)
+            is_oa = check_pdf(pdf_url) # currently there are two API calls to the same endpoint. Refactor so that this check downloads the PDF if available.
         
         if is_oa == "False":
             status = "flagged"
@@ -123,7 +123,7 @@ def fetch_pdf(record, index):
     with open(fname, 'wb') as f:
       f.write(response.content)
     
-    return None #return status
+    return None #return status # return proper status to populate is_oa field
 
 
 
