@@ -102,14 +102,28 @@ def write_dspace_data(data):
     os.chdir("import_package")
 
     for index, record in enumerate(data):
-        path = f'item_{str(index).zfill(3)}'
-        print(path)
-        os.makedirs(path)
-        os.chdir(path)
-        write_dublin_core_file(record)
-        os.chdir("..")
+      if record['status'] == "clean":
+          path = f'item_{str(index).zfill(3)}'
+          os.makedirs(path)
+          os.chdir(path)
+          if record['pdf_url'] is not None:
+            fetch_pdf(record, index)
+          write_dublin_core_file(record)
+          os.chdir("..")
+      else:
+          pass
 
     return None
+
+def fetch_pdf(record, index):
+    #pdf_url = "https://europepmc.org/articles/pmc312198?pdf=render"
+    pdf_url = record['pdf_url']
+    fname = f'item_{str(index).zfill(3)}.pdf'
+    response = requests.get(pdf_url)
+    with open(fname, 'wb') as f:
+      f.write(response.content)
+    
+    return None #return status
 
 
 
@@ -120,3 +134,4 @@ def write_dspace_data(data):
 #print(total_results(query(BASE_URL, UWINNIPEG_ID, 1)))a
 #print(parse_results(query(BASE_URL, UWINNIPEG_ID, 1)))
 write_dspace_data(parse_results(query(BASE_URL, UWINNIPEG_ID, 1)))
+#fetch_url('test')
