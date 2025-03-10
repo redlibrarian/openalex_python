@@ -4,14 +4,17 @@ import os
 import shutil
 import csv
 
+# Module for harvesting metadata records from OpenAlex and, where the article is Open Access and the PDF is available, downloading the article PDF.
+# "Clean" records are written to a an "import package" directory that conforms to the DSpace Simple Archive Format. "Flagged" records are written to a CSV for review.
 
 BASE_URL = "https://api.openalex.org/works?filter=authorships.institutions.lineage%3Ai"
-UWINNIPEG_ID = "872945872"
+UWINNIPEG_ID = "872945872" #Uwinnipeg's publicly available OpenAlex ID.
+DATA_PATH = "import_package"
 
+# Create the import_package folder for DSpace ingest.
 def create_base_dirs():
-    path = "import_package"
-    if not os.path.exists(path):
-        os.makedirs(path)
+    if not os.path.exists(DATA_PATH):
+        os.makedirs(DATA_PATH)
         print("Created new path.")
     else:
         print("Path already exists.")
@@ -28,8 +31,12 @@ def query(url, id, page):
         response.raise_for_status
 
 def check_pdf(pdf_url):
-    response = requests.get(pdf_url)
-    return response.ok
+    if pdf_url is None:
+        return "flagged"
+    elif requests.get(pdf_url).ok:
+        return "clean"
+    else:
+        return "flagged"
 
 def total_results(results):
     return results['meta']['count']
@@ -49,8 +56,9 @@ def fetch_keywords(item):
     return set(keywords)
 
 def build_record(item):
-        status = "clean" # or flagged; if clean output DSpace item directory; if flagged out put to CSV
         record = dict()
+        
+        status = "clean" # or flagged; if clean output DSpace item directory; if flagged out put to CSV
         title = item['title']
         pubdate = item['publication_date']
         doi = item['doi']
@@ -58,32 +66,20 @@ def build_record(item):
         authors = fetch_authors(item)
         keywords = fetch_keywords(item)
         type = item['type']
-        
-        if item['best_oa_location'] is None:
-            location = item['primary_location']
-        else:
-            location = item['best_oa_location']
-        pdf_url = location['pdf_url']
-        
-        if pdf_url is None:
-            is_oa = "False"
-        else:
-            is_oa = check_pdf(pdf_url) # currently two API calls to pdf_url; possible to refactor to just one?
-        
-        if is_oa == "False":
-            status = "flagged"
-        
+        pdf_url = item['best_oa_location']['pdf_url'] if item['best_oa_location'] else item['primary_location']['pdf_url']
+        status = check_pdf(pdf_url) 
+
         if 'license' in item:
             license = item['license']
         else:
-            license = "no license"
+            license = 'no license'
         
-        record = {"title": title, "pubdate": pubdate, "doi": doi, "authors": authors, "type": type, "keywords": keywords, "license": license, "pdf_url": pdf_url, "is_oa": is_oa, "status": status}
+        record = {"title": title, "pubdate": pubdate, "doi": doi, "authors": authors, "type": type, "keywords": keywords, "license": license, "pdf_url": pdf_url, "status": status}
         return record
 
 def write_csv(records):
     with open('flagged_records.csv', 'w', encoding='utf8', newline='') as csvfile:
-        fieldnames = ['title', 'pubdate', 'doi', 'authors', 'type', 'keywords', 'license', 'pdf_url', 'is_oa', 'status']
+        fieldnames = ['title', 'pubdate', 'doi', 'authors', 'type', 'keywords', 'license', 'pdf_url', 'status']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(records)
@@ -111,10 +107,11 @@ def write_dublin_core_file(record):
         outfile.write(doc)
 
 def write_dspace_data(data):
-    if os.path.exists("import_package"):
-        shutil.rmtree("import_package") # start clean
+    
+    if os.path.exists(DATA_PATH):
+        shutil.rmtree(DATA_PATH) # start clean
     create_base_dirs()
-    os.chdir("import_package")
+    os.chdir(DATA_PATH)
     flagged_records = list()
     
     for index, record in enumerate(data):
@@ -134,7 +131,6 @@ def write_dspace_data(data):
 
 
 def fetch_pdf(record, index):
-    #pdf_url = "https://europepmc.org/articles/pmc312198?pdf=render"
     pdf_url = record['pdf_url']
     fname = f'item_{str(index).zfill(3)}.pdf'
     response = requests.get(pdf_url)
@@ -143,13 +139,3 @@ def fetch_pdf(record, index):
     
     return None
 
-
-
-
-
-#print(query(BASE_URL, UWINNIPEG_ID, 1))
-#create_base_dirs()
-#print(total_results(query(BASE_URL, UWINNIPEG_ID, 1)))a
-#print(parse_results(query(BASE_URL, UWINNIPEG_ID, 1)))
-write_dspace_data(parse_results(query(BASE_URL, UWINNIPEG_ID, 1)))
-#fetch_url('test')
