@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import csv
+import openalex_record as oar
 
 # Module for harvesting metadata records from OpenAlex and, where the article is Open Access and the PDF is available, downloading the article PDF.
 # "Clean" records are written to a an "import package" directory that conforms to the DSpace Simple Archive Format. "Flagged" records are written to a CSV for review.
@@ -30,52 +31,8 @@ def query(url, id, page):
     else:
         response.raise_for_status
 
-def check_pdf(pdf_url):
-    if pdf_url is None:
-        return "flagged"
-    elif requests.get(pdf_url).ok:
-        return "clean"
-    else:
-        return "flagged"
-
 def total_results(results):
     return results['meta']['count']
-
-def fetch_authors(item):
-    authors = []
-    for author in item['authorships']:
-        authors.append(author['author']['display_name'])
-    return authors
-
-def fetch_keywords(item):
-    keywords = []
-    for word in item['keywords']:
-        keywords.append(word['display_name'].lower())
-    for word in item['concepts']:
-        keywords.append(word['display_name'].lower())
-    return set(keywords)
-
-def build_record(item):
-        record = dict()
-        
-        status = "clean" # or flagged; if clean output DSpace item directory; if flagged out put to CSV
-        title = item['title']
-        pubdate = item['publication_date']
-        doi = item['doi']
-        location = item['best_oa_location']
-        authors = fetch_authors(item)
-        keywords = fetch_keywords(item)
-        type = item['type']
-        pdf_url = item['best_oa_location']['pdf_url'] if item['best_oa_location'] else item['primary_location']['pdf_url']
-        status = check_pdf(pdf_url) 
-
-        if 'license' in item:
-            license = item['license']
-        else:
-            license = 'no license'
-        
-        record = {"title": title, "pubdate": pubdate, "doi": doi, "authors": authors, "type": type, "keywords": keywords, "license": license, "pdf_url": pdf_url, "status": status}
-        return record
 
 def write_csv(records):
     with open('flagged_records.csv', 'w', encoding='utf8', newline='') as csvfile:
@@ -87,24 +44,8 @@ def write_csv(records):
 def parse_results(data):
     items = []
     for item in data['results']:
-        items.append(build_record(item))
+        items.append(oar.build_record(item))
     return items
-
-def write_dublin_core_file(record):
-    with open("dublin_core.xml", "w") as outfile:
-        doc = "<dublin_core>"
-        doc += "<dcvalue element=\"title\">" + record["title"]+"</dcvalue>"
-        doc += "<dcvalue element=\"date\" qualifier=\"issued\">" + record["pubdate"]+"</dcvalue>"
-        if record['doi'] is not None:
-            doc += "<dcvalue element=\"identifier\" qualifier=\"doi\">" + record["doi"]+"</dcvalue>"
-        for author in record['authors']:
-            doc += "<dcvalue element=\"author\">" + author + "</dcvalue>"
-        for keyword in record['keywords']:
-            doc += "<dcvalue element=\"keyword\">" + keyword + "</dcvalue>"
-        doc += "<dcvalue element=\"type\">" + record['type'] + "</dcvalue>"
-        doc += "<dvalue element=\"license\">" + record['license'] + "</dcvalue>"
-        doc += "</dublin_core>"
-        outfile.write(doc)
 
 def write_dspace_data(data):
     
@@ -119,23 +60,12 @@ def write_dspace_data(data):
           path = f'item_{str(index).zfill(3)}'
           os.makedirs(path)
           os.chdir(path)
-          write_dublin_core_file(record)
-          fetch_pdf(record, index)
+          oar.write_dublin_core_file(record)
+          oar.fetch_pdf(record, index)
           os.chdir("..")
       else:
           flagged_records.append(record)
     write_csv(flagged_records)
 
-    return None
-
-
-
-def fetch_pdf(record, index):
-    pdf_url = record['pdf_url']
-    fname = f'item_{str(index).zfill(3)}.pdf'
-    response = requests.get(pdf_url)
-    with open(fname, 'wb') as f:
-      f.write(response.content)
-    
     return None
 
