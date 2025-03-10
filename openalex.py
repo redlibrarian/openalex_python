@@ -13,9 +13,11 @@ UWINNIPEG_ID = "872945872" #Uwinnipeg's publicly available OpenAlex ID.
 DATA_PATH = "import_package"
 
 # Create the import_package folder for DSpace ingest.
-def create_base_dirs():
-    if not os.path.exists(DATA_PATH):
-        os.makedirs(DATA_PATH)
+def create_base_dirs(data_path):
+    if os.path.exists(data_path):
+        shutil.rmtree(data_path) # start clean
+    if not os.path.exists(data_path):
+        os.makedirs(data_path)
         print("Created new path.")
     else:
         print("Path already exists.")
@@ -37,7 +39,7 @@ def total_results(results):
 def write_csv(records):
     with open('flagged_records.csv', 'w', encoding='utf8', newline='') as csvfile:
         fieldnames = ['title', 'pubdate', 'doi', 'authors', 'type', 'keywords', 'license', 'pdf_url', 'status']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames) # I think there's a way to pull fieldnames from the dict
         writer.writeheader()
         writer.writerows(records)
 
@@ -47,24 +49,25 @@ def parse_results(data):
         items.append(oar.build_record(item))
     return items
 
+def process_record(index, record):
+    path = f'item_{str(index).zfill(3)}'
+    os.makedirs(path)
+    os.chdir(path)
+    oar.write_dublin_core_file(record)
+    oar.fetch_pdf(record, index)
+    os.chdir("..")
+
 def write_dspace_data(data):
-    
-    if os.path.exists(DATA_PATH):
-        shutil.rmtree(DATA_PATH) # start clean
-    create_base_dirs()
+    create_base_dirs(DATA_PATH)
     os.chdir(DATA_PATH)
     flagged_records = list()
     
     for index, record in enumerate(data):
       if record['status'] == "clean":
-          path = f'item_{str(index).zfill(3)}'
-          os.makedirs(path)
-          os.chdir(path)
-          oar.write_dublin_core_file(record)
-          oar.fetch_pdf(record, index)
-          os.chdir("..")
+          process_record(index, record)
       else:
           flagged_records.append(record)
+
     write_csv(flagged_records)
 
     return None
