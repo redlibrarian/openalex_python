@@ -2,6 +2,7 @@ import requests
 import json
 import os
 import shutil
+import csv
 
 
 BASE_URL = "https://api.openalex.org/works?filter=authorships.institutions.lineage%3Ai"
@@ -48,7 +49,7 @@ def fetch_keywords(item):
     return set(keywords)
 
 def build_record(item):
-        status = "clean" # or flagged; if # clean output DSpace item directory; if flagged out put to CSV
+        status = "clean" # or flagged; if clean output DSpace item directory; if flagged out put to CSV
         record = dict()
         title = item['title']
         pubdate = item['publication_date']
@@ -67,7 +68,7 @@ def build_record(item):
         if pdf_url is None:
             is_oa = "False"
         else:
-            is_oa = check_pdf(pdf_url) # currently there are two API calls to the same endpoint. Refactor so that this check downloads the PDF if available.
+            is_oa = check_pdf(pdf_url) # currently two API calls to pdf_url; possible to refactor to just one?
         
         if is_oa == "False":
             status = "flagged"
@@ -80,6 +81,13 @@ def build_record(item):
         record = {"title": title, "pubdate": pubdate, "doi": doi, "authors": authors, "type": type, "keywords": keywords, "license": license, "pdf_url": pdf_url, "is_oa": is_oa, "status": status}
         return record
 
+def write_csv(records):
+    with open('flagged_records.csv', 'w', encoding='utf8', newline='') as csvfile:
+        fieldnames = ['title', 'pubdate', 'doi', 'authors', 'type', 'keywords', 'license', 'pdf_url', 'is_oa', 'status']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(records)
+
 def parse_results(data):
     items = []
     for item in data['results']:
@@ -89,31 +97,41 @@ def parse_results(data):
 def write_dublin_core_file(record):
     with open("dublin_core.xml", "w") as outfile:
         doc = "<dublin_core>"
-        doc += "<dcvalue element=\"title\" qualifier=\"none\">" + record["title"]+"</dcvalue>"
-        doc += "<dcvalue element=\"date\" qualifier=\"none\">" + record["pubdate"]+"</dcvalue>"
+        doc += "<dcvalue element=\"title\">" + record["title"]+"</dcvalue>"
+        doc += "<dcvalue element=\"date\" qualifier=\"issued\">" + record["pubdate"]+"</dcvalue>"
         if record['doi'] is not None:
-            doc += "<dcvalue element=\"identifier\" qualifier=\"none\">" + record["doi"]+"</dcvalue>"
+            doc += "<dcvalue element=\"identifier\" qualifier=\"doi\">" + record["doi"]+"</dcvalue>"
+        for author in record['authors']:
+            doc += "<dcvalue element=\"author\">" + author + "</dcvalue>"
+        for keyword in record['keywords']:
+            doc += "<dcvalue element=\"keyword\">" + keyword + "</dcvalue>"
+        doc += "<dcvalue element=\"type\">" + record['type'] + "</dcvalue>"
+        doc += "<dvalue element=\"license\">" + record['license'] + "</dcvalue>"
         doc += "</dublin_core>"
         outfile.write(doc)
 
 def write_dspace_data(data):
-    #shutil.rmtree("import_package") # start clean
+    if os.path.exists("import_package"):
+        shutil.rmtree("import_package") # start clean
     create_base_dirs()
     os.chdir("import_package")
-
+    flagged_records = list()
+    
     for index, record in enumerate(data):
       if record['status'] == "clean":
           path = f'item_{str(index).zfill(3)}'
           os.makedirs(path)
           os.chdir(path)
-          if record['pdf_url'] is not None:
-            fetch_pdf(record, index)
           write_dublin_core_file(record)
+          fetch_pdf(record, index)
           os.chdir("..")
       else:
-          pass
+          flagged_records.append(record)
+    write_csv(flagged_records)
 
     return None
+
+
 
 def fetch_pdf(record, index):
     #pdf_url = "https://europepmc.org/articles/pmc312198?pdf=render"
@@ -123,7 +141,7 @@ def fetch_pdf(record, index):
     with open(fname, 'wb') as f:
       f.write(response.content)
     
-    return None #return status # return proper status to populate is_oa field
+    return None
 
 
 
