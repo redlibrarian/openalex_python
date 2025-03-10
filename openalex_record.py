@@ -23,6 +23,15 @@ def fetch_keywords(item):
         keywords.append(word['display_name'].lower())
     return set(keywords)
 
+def fetch_pdf(record, index):
+    pdf_url = record['pdf_url']
+    fname = f'item_{str(index).zfill(3)}.pdf'
+    response = requests.get(pdf_url)
+    with open(fname, 'wb') as f:
+      f.write(response.content)
+    
+    return None
+
 def build_record(item):
         record = dict()
         
@@ -60,13 +69,4 @@ def write_dublin_core_file(record):
         doc += "<dvalue element=\"license\">" + record['license'] + "</dcvalue>"
         doc += "</dublin_core>"
         outfile.write(doc)
-
-def fetch_pdf(record, index):
-    pdf_url = record['pdf_url']
-    fname = f'item_{str(index).zfill(3)}.pdf'
-    response = requests.get(pdf_url)
-    with open(fname, 'wb') as f:
-      f.write(response.content)
-    
-    return None
 
