@@ -16,11 +16,8 @@ DATA_PATH = "import_package"
 def create_base_dirs(data_path):
     if os.path.exists(data_path):
         shutil.rmtree(data_path) # start clean
-    if not os.path.exists(data_path):
-        os.makedirs(data_path)
-        print("Created new path.")
-    else:
-        print("Path already exists.")
+    os.makedirs(data_path)
+    print("Created new path.")
 
 
 def query(url, id, page):
