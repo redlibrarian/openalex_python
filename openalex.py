@@ -41,10 +41,7 @@ def write_csv(records):
         writer.writerows(records)
 
 def parse_results(data):
-    items = []
-    for item in data['results']:
-        items.append(oar.build_record(item))
-    return items
+    return [oar.build_record(item) for item in data['results']]
 
 def process_record(index, record):
     path = f'item_{str(index).zfill(3)}'
