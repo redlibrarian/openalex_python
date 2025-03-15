@@ -10,17 +10,11 @@ def check_pdf(pdf_url):
         return "flagged"
 
 def fetch_authors(item):
-    authors = []
-    for author in item['authorships']:
-        authors.append(author['author']['display_name'])
-    return authors
+    return [author['author']['display_name'] for author in item['authorships']]
 
 def fetch_keywords(item):
-    keywords = []
-    for word in item['keywords']:
-        keywords.append(word['display_name'].lower())
-    for word in item['concepts']:
-        keywords.append(word['display_name'].lower())
+    keywords = [word['display_name'].lower() for word in item['keywords']
+                                             for word in item['concepts']]
     return set(keywords)
 
 def fetch_pdf(record, index):
