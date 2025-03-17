@@ -21,7 +21,8 @@ def fetch_keywords(item):
         keywords.append(word['display_name'].lower())
     for word in item['concepts']:
         keywords.append(word['display_name'].lower())
-    return set(keywords)
+
+    return sorted(set(keywords))
 
 def fetch_pdf(record, index):
     pdf_url = record['pdf_url']
@@ -52,6 +53,8 @@ def build_record(item):
             license = 'no license'
         
         record = {"title": title, "pubdate": pubdate, "doi": doi, "authors": authors, "type": type, "keywords": keywords, "license": license, "pdf_url": pdf_url, "status": status}
+        print(record)
+        print()
         return record
 
 def write_dublin_core_file(record):
