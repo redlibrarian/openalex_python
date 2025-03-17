@@ -10,18 +10,15 @@ def check_pdf(pdf_url):
         return "flagged"
 
 def fetch_authors(item):
-    authors = []
-    for author in item['authorships']:
-        authors.append(author['author']['display_name'])
-    return authors
+    return [author['author']['display_name'] for author in item['authorships']]
 
 def fetch_keywords(item):
-    keywords = []
+    keywords = []     # list comprehension doesn't work here when one of the lists is empty.
     for word in item['keywords']:
         keywords.append(word['display_name'].lower())
     for word in item['concepts']:
         keywords.append(word['display_name'].lower())
-
+    
     return sorted(set(keywords))
 
 def fetch_pdf(record, index):
@@ -29,33 +26,33 @@ def fetch_pdf(record, index):
     fname = f'item_{str(index).zfill(3)}.pdf'
     response = requests.get(pdf_url)
     with open(fname, 'wb') as f:
-      f.write(response.content)
-    
+        f.write(response.content)
+
     return None
 
 def build_record(item):
-        record = dict()
-        
-        status = "clean" # or flagged; if clean output DSpace item directory; if flagged out put to CSV
-        title = item['title']
-        pubdate = item['publication_date']
-        doi = item['doi']
-        location = item['best_oa_location']
-        authors = fetch_authors(item)
-        keywords = fetch_keywords(item)
-        type = item['type']
-        pdf_url = item['best_oa_location']['pdf_url'] if item['best_oa_location'] else item['primary_location']['pdf_url']
-        status = check_pdf(pdf_url) 
+    record = dict()
 
-        if 'license' in item:
-            license = item['license']
-        else:
-            license = 'no license'
-        
-        record = {"title": title, "pubdate": pubdate, "doi": doi, "authors": authors, "type": type, "keywords": keywords, "license": license, "pdf_url": pdf_url, "status": status}
-        print(record)
-        print()
-        return record
+    status = "clean" # or flagged; if clean output DSpace item directory; if flagged out put to CSV
+    title = item['title']
+    pubdate = item['publication_date']
+    doi = item['doi']
+    location = item['best_oa_location']
+    authors = fetch_authors(item)
+    keywords = fetch_keywords(item)
+    type = item['type']
+    pdf_url = item['best_oa_location']['pdf_url'] if item['best_oa_location'] else item['primary_location']['pdf_url']
+    status = check_pdf(pdf_url) 
+
+    if 'license' in item:
+        license = item['license']
+    else:
+        license = 'no license'
+
+    record = {"title": title, "pubdate": pubdate, "doi": doi, "authors": authors, "type": type, "keywords": keywords, "license": license, "pdf_url": pdf_url, "status": status}
+    print(record)
+    print()
+    return record
 
 def write_dublin_core_file(record):
     with open("dublin_core.xml", "w") as outfile:
